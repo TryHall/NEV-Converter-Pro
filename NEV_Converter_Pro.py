@@ -6,7 +6,7 @@ from tkinter import filedialog, messagebox
 from tkinterdnd2 import TkinterDnD, DND_FILES
 from pathlib import Path
 
-# --- Helper: Handle paths for bundled EXE ---
+# --- Helper: Handle paths for bundled App/Exe ---
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
@@ -70,14 +70,21 @@ class ConverterApp(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self):
         super().__init__()
         
-        # --- 1. SET CUSTOM ICON (Works in EXE) ---
+        # --- UNIVERSAL ICON LOADER ---
         try:
-            icon_file = resource_path("icon.ico")
-            self.iconbitmap(icon_file)
-        except Exception:
-            pass
+            if sys.platform.startswith("win"):
+                # Windows: Use .ico
+                icon_file = resource_path("icon.ico")
+                self.iconbitmap(icon_file)
+            else:
+                # Mac/Linux: Use .png (Tkinter is unstable with .ico on Mac)
+                icon_file = resource_path("icon.png")
+                img = tk.PhotoImage(file=icon_file)
+                self.iconphoto(True, img)
+        except Exception as e:
+            print(f"Icon Warning: {e}")
 
-        # --- 2. Initialize Drag & Drop ---
+        # --- Initialize Drag & Drop ---
         try:
             self.TkdndVersion = TkinterDnD._require(self)
             self.dnd_enabled = True
@@ -174,7 +181,6 @@ class ConverterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         target_ext = ".nev" if self.mode_var.get() == "convert" else ".r3d"
         for p in paths:
             path_obj = Path(p)
-            # Only add if file matches target extension or is a folder
             if (path_obj.is_file() and path_obj.suffix.lower() == target_ext) or path_obj.is_dir():
                 if str(path_obj) not in self.queue:
                     self.queue.add(str(path_obj))
@@ -225,8 +231,6 @@ class ConverterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             'new_ext': '.R3D' if mode == 'convert' else '.NEV'
         }
         count = 0
-        
-        # Helper to recursively get files from folders in queue
         def get_all_files():
             for p_str in self.queue:
                 p = Path(p_str)
@@ -244,7 +248,6 @@ class ConverterApp(ctk.CTk, TkinterDnD.DnDWrapper):
                         if offset != -1:
                             f.seek(offset)
                             f.write(cfg['replace_sig'])
-                            # Rename only if successful
                             new_path = file_path.with_suffix(cfg['new_ext'])
                             file_path.rename(new_path)
                             count += 1
