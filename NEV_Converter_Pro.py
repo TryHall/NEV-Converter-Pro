@@ -8,13 +8,10 @@ from pathlib import Path
 
 # --- Helper: Handle paths for bundled App/Exe ---
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
-
     return os.path.join(base_path, relative_path)
 
 # --- Configuration ---
@@ -73,16 +70,14 @@ class ConverterApp(ctk.CTk, TkinterDnD.DnDWrapper):
         # --- UNIVERSAL ICON LOADER ---
         try:
             if sys.platform.startswith("win"):
-                # Windows: Use .ico
                 icon_file = resource_path("icon.ico")
                 self.iconbitmap(icon_file)
             else:
-                # Mac/Linux: Use .png (Tkinter is unstable with .ico on Mac)
                 icon_file = resource_path("icon.png")
                 img = tk.PhotoImage(file=icon_file)
                 self.iconphoto(True, img)
-        except Exception as e:
-            print(f"Icon Warning: {e}")
+        except Exception:
+            pass
 
         # --- Initialize Drag & Drop ---
         try:
@@ -90,7 +85,6 @@ class ConverterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             self.dnd_enabled = True
         except:
             self.dnd_enabled = False
-            print("Warning: tkinterdnd2 library not found.")
 
         self.cur_lang = 'en'
         self.queue = set()
@@ -153,7 +147,7 @@ class ConverterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             self.drop_target_register(DND_FILES)
             self.dnd_bind('<<Drop>>', self.on_drop)
 
-    # --- Logic Methods ---
+    # --- UI Logic ---
     def toggle_theme(self):
         ctk.set_appearance_mode("Dark" if self.switch_theme.get() == "Dark" else "Light")
         self.update_texts()
@@ -231,6 +225,7 @@ class ConverterApp(ctk.CTk, TkinterDnD.DnDWrapper):
             'new_ext': '.R3D' if mode == 'convert' else '.NEV'
         }
         count = 0
+        
         def get_all_files():
             for p_str in self.queue:
                 p = Path(p_str)
@@ -240,22 +235,48 @@ class ConverterApp(ctk.CTk, TkinterDnD.DnDWrapper):
                         if sub.is_file(): yield sub
 
         for file_path in get_all_files():
-            if file_path.suffix.lower() == cfg['target_ext'].lower():
-                try:
-                    with open(file_path, 'r+b') as f:
-                        header = f.read(4096)
-                        offset = header.find(cfg['target_sig'])
-                        if offset != -1:
-                            f.seek(offset)
-                            f.write(cfg['replace_sig'])
-                            new_path = file_path.with_suffix(cfg['new_ext'])
-                            file_path.rename(new_path)
-                            count += 1
-                except Exception as e:
-                    print(f"Error: {e}")
-
+            # Pass the Path object directly to the improved processor
+            if self._process_file_with_timestamps(file_path, cfg):
+                count += 1
+        
         self.clear_queue()
         self.lbl_status.configure(text=t['status_done'].format(count), text_color="#2CC985")
+
+    # --- NEW: File Processing with Timestamp Preservation ---
+    def _process_file_with_timestamps(self, path: Path, cfg):
+        # 1. Check extension
+        if path.suffix.lower() != cfg['target_ext'].lower():
+            return False
+            
+        try:
+            # 2. CAPTURE ORIGINAL TIMESTAMPS
+            # st_atime = access time, st_mtime = modification time
+            stats = path.stat()
+            orig_atime = stats.st_atime
+            orig_mtime = stats.st_mtime
+            
+            # 3. MODIFY HEADER (This usually updates mtime)
+            with open(path, 'r+b') as f:
+                header = f.read(4096)
+                offset = header.find(cfg['target_sig'])
+                if offset == -1:
+                    return False
+                f.seek(offset)
+                f.write(cfg['replace_sig'])
+            
+            # 4. RENAME
+            new_path = path.with_suffix(cfg['new_ext'])
+            path.rename(new_path)
+            
+            # 5. RESTORE TIMESTAMPS
+            # We apply the original times to the *new* filename
+            os.utime(new_path, (orig_atime, orig_mtime))
+            
+            return True
+
+        except Exception as e:
+            print(f"Error processing {path.name}: {e}")
+            return False
 
 if __name__ == "__main__":
     app = ConverterApp()
