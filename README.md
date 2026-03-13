@@ -5,6 +5,8 @@
 **简体中文 &nbsp; | &nbsp; [English](#english)**
 <a id="chinese"></a>
 
+<div align="center"><img alt="zh" src="doc/zh.png"></div>
+
 ### 项目简介
 
 本工具是一款专为 **尼康 NRAW (.NEV)** 视频素材设计的实用程序，旨在打通 NRAW 素材与专业后期制作流程之间的壁垒。
@@ -56,6 +58,8 @@ Nikon ZR 相机支持录制两种 RAW 格式：**NRAW NEV** 和 **R3D NE**（后
 ---
 **[简体中文](#chinese) &nbsp; | &nbsp; English**
 <a id="english"></a>
+
+<div align="center"><img alt="en" src="doc/en.png"></div>
 
 ### Overview
 
